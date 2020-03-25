@@ -2,10 +2,6 @@ const parser = require('fast-xml-parser');
 const iconv = require('iconv-lite');
 const fs = require('fs');
 
-function nbrCheck(s) {
-  return s.match(/^[0-9]+$|^[0-9]+\.[0-9]+$/g) != null;
-}
-
 function quoteStrip(s) {
   while (s.indexOf('"') != -1) {
     s = s.replace('"', '');
@@ -13,39 +9,68 @@ function quoteStrip(s) {
   return s;
 }
 
-function knvTagParser(content, tagName) {
-  if (content == null || content.length == 0) return;
+function translateToRegularXML(content) {
+  let tmpXML;
+  for (let line of content.split('\n')) {
+    dataPair = line.match(/([0-9a-zA-Z_]+) = (.*)/);
 
-  let subContent = content.split('\n').map(function(value) {
-    let tmp = value.split(' = ');
-
-    if (tmp.length != 2) return;
-
-    if (tmp[1].indexOf(',') != -1) {
-      tmp[1] = tmp[1].split(',');
+    if (dataPair != null && dataPair.length == 3) {
+      line =
+        '<' +
+        dataPair[1] +
+        '>' +
+        quoteStrip(dataPair[2]) +
+        '</' +
+        dataPair[1] +
+        '>';
     }
 
-    return tmp;
-  });
-
-  let json = '{';
-
-  for (let row of subContent) {
-    json += '"' + row[0] + '"' + ':';
-    if (Array.isArray(row[1])) {
-      json += '[' + row[1].join(',') + ']';
-    } else {
-      if (nbrCheck(row[1])) {
-        json += row[1];
-      } else {
-        json += '"' + quoteStrip(row[1]) + '"';
-      }
-    }
-    json += ',';
+    tmpXML += line + '\n';
   }
-  json = json.slice(0, json.length - 1) + '}';
+  return tmpXML;
+}
 
-  return JSON.parse(json);
+function sunAnglClc(value) {
+  let tmp = value.match(/^([0-9\.]+)|([0-9\.]+,.*)$/);
+  if (tmp != null) {
+    return Number(tmp[1]);
+  }
+  return tmp;
+}
+
+function knvPassSimpleHandler(content) {
+  console.log(content.PASP_ROOT.cProcLevel);
+  return {
+    typeCa: content.PASP_ROOT.cModelTxtName,
+    typeAp: content.PASP_ROOT.Device.cDeviceTxtName,
+    radiometricRes: content.PASP_ROOT.Matrix.nBitsPerPixel,
+    sunAngl: sunAnglClc(content.PASP_ROOT.bSunAngle),
+    maxDisAngl: content.PASP_ROOT.Geo.Orientation.nAlpha,
+    shootDate: content.PASP_ROOT.dSessionDate,
+    shootTime: content.PASP_ROOT.tSessionTime,
+    coordSys:
+      ['2', '2A', '2А'].indexOf(content.PASP_ROOT.cProcLevel) != -1
+        ? content.PASP_ROOT.Geo.GeoCoding.cCoordSystName
+        : undefined
+  };
+}
+
+function rspPassSimpleHandler(content) {
+  return {
+    typeCa: (name => {
+      return name == 'RSP' ? 'Ресурс-П' : name;
+    })(content.SPP_ROOT.cCodeKA),
+    typeAp: content.SPP_ROOT.Passport.cDeviceName,
+    radiometricRes: content.SPP_ROOT.Passport.nBitsPerPixel,
+    sunAngl: content.SPP_ROOT.Normal.aSunElevC,
+    maxDisAngl: content.SPP_ROOT.Normal.aAngleSum,
+    shootDate: content.SPP_ROOT.Normal.dSceneDate,
+    shootTime: content.SPP_ROOT.Normal.tSceneTime,
+    coordSys:
+      ['2', '2А', '2A'].indexOf(content.SPP_ROOT.Normal.cLevel) != -1
+        ? content.SPP_ROOT.CoordinateSystem.cCoordSystName
+        : undefined
+  };
 }
 
 exports.passReader = function(filename) {
@@ -57,17 +82,16 @@ exports.passReader = function(filename) {
       return;
     }
     content = iconv.decode(content, 'win1251');
+
     // вот тут костыль: опреляем тмп КА по имеени ROOT документа
     // для Ресурса - <SPP_ROOT>
     // для Канопуса - <PASP_ROOT>
     if (content.indexOf('<PASP_ROOT>') != -1) {
-      contentJSON = parser.parse(content, {
-        tagValueProcessor: (value, tagName) => knvTagParser(value, tagName)
-      });
+      console.log(
+        knvPassSimpleHandler(parser.parse(translateToRegularXML(content)))
+      );
     } else {
-      contentJSON = parser.parse(content);
+      console.log(rspPassSimpleHandler(parser.parse(content)));
     }
-
-    console.log(contentJSON);
   });
 };
