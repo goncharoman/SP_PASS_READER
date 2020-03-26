@@ -3,6 +3,8 @@ const ipcMain = require('electron').ipcMain;
 const fs = require('fs');
 const path = require('path');
 const reader = require('./reader.js').passReader;
+const settings = require('./settings.json');
+const builder = require('./build-data.js').buildData;
 
 let mainWindow;
 let xmlFile;
@@ -10,12 +12,15 @@ let pdfFile;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 400,
+    width: 800,
     height: 600,
     webPreferences: {
       nodeIntegration: true
     }
   });
+
+  mainWindow.maximize();
+  mainWindow.webContents.openDevTools();
 
   mainWindow.loadFile('./public/index.html');
 
@@ -62,7 +67,9 @@ ipcMain.on('loadDir', function(event, args) {
             }
             if (file.match(/.*.xml$/g) != null) {
               xmlFile = path.join(currentDir, file);
-              reader(xmlFile);
+              reader(xmlFile, settings.mode, reply => {
+                event.returnValue = builder([null], reply, settings.mode);
+              });
             }
           });
         });
