@@ -1,5 +1,26 @@
-const ipcRenr = require('electron').ipcRenderer;
+const ipcRenderer = require('electron').ipcRenderer;
+// load jQuery
+window.$ = window.jQuery = require('jquery');
 
-document.getElementById('dirLoad').addEventListener('click', function() {
-  ipcRenr.send('loadDir', 'args');
+function createContent(dataList = null) {
+  $('#contentWindow').empty();
+  $('#contentWindow').load('./templates/table.html', () => {
+    for (let elem of dataList.params) {
+      console.log(elem);
+      $('#params').append(
+        '<div class="row">' +
+          '<div class="cell">' +
+          elem[0] +
+          '</div>' +
+          '<div class="cell">' +
+          elem[1] +
+          '</div>' +
+          '</div>'
+      );
+    }
+  });
+}
+
+$('#dirLoad').click(function() {
+  createContent(ipcRenderer.sendSync('loadDir'));
 });
