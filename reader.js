@@ -39,13 +39,12 @@ function sunAnglClc(value) {
 }
 
 function knvPassSimpleHandler(content) {
-  console.log(content.PASP_ROOT.cProcLevel);
   return {
     typeCa: content.PASP_ROOT.cModelTxtName,
     typeAp: content.PASP_ROOT.Device.cDeviceTxtName,
     radiometricRes: content.PASP_ROOT.Matrix.nBitsPerPixel,
     sunAngl: sunAnglClc(content.PASP_ROOT.bSunAngle),
-    maxDisAngl: content.PASP_ROOT.Geo.Orientation.nAlpha,
+    disAngl: content.PASP_ROOT.Geo.Orientation.nAlpha,
     shootDate: content.PASP_ROOT.dSessionDate,
     shootTime: content.PASP_ROOT.tSessionTime,
     coordSys:
@@ -63,7 +62,7 @@ function rspPassSimpleHandler(content) {
     typeAp: content.SPP_ROOT.Passport.cDeviceName,
     radiometricRes: content.SPP_ROOT.Passport.nBitsPerPixel,
     sunAngl: content.SPP_ROOT.Normal.aSunElevC,
-    maxDisAngl: content.SPP_ROOT.Normal.aAngleSum,
+    disAngl: content.SPP_ROOT.Normal.aAngleSum,
     shootDate: content.SPP_ROOT.Normal.dSceneDate,
     shootTime: content.SPP_ROOT.Normal.tSceneTime,
     coordSys:
@@ -73,25 +72,31 @@ function rspPassSimpleHandler(content) {
   };
 }
 
-exports.passReader = function(filename) {
+exports.passReader = function(filename, mode = 'simple', callback = undefined) {
   fs.readFile(filename, function(err, content) {
-    let contentJSON;
-
     if (err) {
       console.log('error');
       return;
     }
     content = iconv.decode(content, 'win1251');
 
+    let reply;
     // вот тут костыль: опреляем тмп КА по имеени ROOT документа
     // для Ресурса - <SPP_ROOT>
     // для Канопуса - <PASP_ROOT>
-    if (content.indexOf('<PASP_ROOT>') != -1) {
-      console.log(
-        knvPassSimpleHandler(parser.parse(translateToRegularXML(content)))
-      );
+    if (mode == 'simple') {
+      if (content.indexOf('<PASP_ROOT>') != -1) {
+        reply = knvPassSimpleHandler(
+          parser.parse(translateToRegularXML(content))
+        );
+      } else {
+        reply = rspPassSimpleHandler(parser.parse(content));
+      }
     } else {
-      console.log(rspPassSimpleHandler(parser.parse(content)));
+      console.log('extention mode');
+    }
+    if (callback) {
+      callback(reply);
     }
   });
 };
