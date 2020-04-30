@@ -15,7 +15,7 @@
     "electron": "^8.1.1",
     "fast-xml-parser": "^3.16.0",
     "iconv-lite": "^0.5.1",
-    "jquery": "^3.4.1"
+    "jquery": "^3.5.0"
   },
   "dependencies": {}
 }
